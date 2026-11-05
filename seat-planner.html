@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>自动排座位系统</title>
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: #252a31;
+      background: #f5f6f7;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      --text-muted: #68717d;
+      --line: #d9dde2;
+      --surface: #fff;
+      --surface-subtle: #f8f9fa;
+      --accent: #1769aa;
+      --accent-hover: #10578f;
+      --danger: #b42318;
+      --danger-bg: #fff2f0;
+      --focus: #8fc6f2;
+    }
+
+    * { box-sizing: border-box; }
+
+    body { margin: 0; min-width: 320px; }
+
+    button, input, textarea { font: inherit; }
+
+    button {
+      min-height: 40px;
+      border: 1px solid #c8cdd3;
+      border-radius: 5px;
+      padding: 0 14px;
+      color: #29313a;
+      background: var(--surface);
+      cursor: pointer;
+      transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+    }
+
+    button:hover { background: #f1f4f6; border-color: #9ba4ae; }
+    button:active { background: #e8edf1; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+
+    .primary {
+      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    .primary:hover { color: #fff; background: var(--accent-hover); border-color: var(--accent-hover); }
+    .primary:active { background: #0c4b7c; }
+
+    .page-header {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 12px max(24px, calc((100vw - 1200px) / 2));
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      display: grid;
+      grid-template-columns: repeat(2, 8px);
+      gap: 3px;
+      padding: 6px;
+      border: 1px solid #b8c0c8;
+      border-radius: 5px;
+    }
+    .brand-mark span { width: 8px; height: 8px; border: 1px solid #8e99a4; border-radius: 2px; }
+    h1 { margin: 0; font-size: 19px; line-height: 1.35; font-weight: 650; }
+    .privacy-note { margin: 0; color: var(--text-muted); font-size: 13px; }
+
+    main {
+      width: min(1200px, 100%);
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+      align-items: start;
+      gap: 32px;
+    }
+
+    .controls, .results { min-width: 0; }
+    .section-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    h2 { margin: 0; font-size: 16px; font-weight: 650; }
+    .section-meta { color: var(--text-muted); font-size: 13px; }
+
+    .field { margin-bottom: 20px; }
+    label, legend { display: block; margin-bottom: 7px; font-size: 14px; font-weight: 600; }
+    .field-hint { margin: 6px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+    textarea, input[type="number"], select {
+      width: 100%;
+      border: 1px solid #bfc6cd;
+      border-radius: 5px;
+      color: #252a31;
+      background: var(--surface);
+    }
+    textarea { min-height: 220px; padding: 11px 12px; resize: vertical; line-height: 1.55; }
+    input[type="number"], select { height: 40px; padding: 0 10px; }
+    textarea::placeholder { color: #8a939d; }
+
+    .dimensions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .dimensions .field { margin-bottom: 0; }
+
+    .form-actions { display: flex; gap: 9px; margin-top: 22px; }
+    .form-actions button { flex: 1; }
+
+    .notice {
+      min-height: 24px;
+      margin: 14px 0 0;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .notice.error {
+      padding: 9px 10px;
+      color: var(--danger);
+      background: var(--danger-bg);
+      border: 1px solid #f0c7c2;
+      border-radius: 5px;
+    }
+    .notice.success { color: #276749; }
+
+    .result-toolbar {
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .result-count { margin: 0; color: var(--text-muted); font-size: 13px; }
+    .result-actions { display: flex; gap: 8px; }
+
+    .empty-state {
+      min-height: 300px;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      padding: 24px;
+      color: var(--text-muted);
+      text-align: center;
+      border: 1px dashed #bfc6cd;
+      border-radius: 5px;
+      background: var(--surface);
+    }
+    .empty-icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 12px;
+      border: 1px solid #c8cdd3;
+      border-radius: 5px;
+      color: #697481;
+      font-size: 20px;
+    }
+    .empty-state strong { color: #39424c; font-size: 14px; font-weight: 600; }
+    .empty-state p { margin: 6px 0 0; font-size: 13px; }
+
+    .board-wrap {
+      width: 100%;
+      overflow: auto;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: var(--surface);
+    }
+    .board-layout {
+      display: flex;
+      align-items: stretch;
+      gap: 12px;
+      width: max-content;
+      min-width: 100%;
+    }
+    .board-layout.podium-top, .board-layout.podium-bottom {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .board-layout.podium-right { flex-direction: row-reverse; }
+    .podium {
+      min-width: 100px;
+      min-height: 42px;
+      display: grid;
+      place-items: center;
+      padding: 8px 16px;
+      border: 1px solid #aeb8c2;
+      border-radius: 4px;
+      color: #49535e;
+      background: #edf0f2;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .podium-left, .podium-right { min-width: 42px; width: 42px; writing-mode: vertical-rl; }
+    .seat-grid {
+      display: grid;
+      grid-template-columns: repeat(var(--columns), minmax(64px, 1fr));
+      gap: 8px;
+    }
+    .seat {
+      width: 100%;
+      min-width: 64px;
+      min-height: 58px;
+      aspect-ratio: 1.5 / 1;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      padding: 6px;
+      color: #303841;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border-color: #b9c1c9;
+      background: #fff;
+    }
+    .seat.empty-seat { color: #9099a3; background: #f7f8f9; }
+    .seat.selected-seat {
+      color: #124d78;
+      border-color: var(--accent);
+      background: #eaf4fb;
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+    .seat-index { display: block; color: #8a939d; font-size: 10px; line-height: 1.2; }
+    .seat-name { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+    .seat.empty-seat .seat-name { font-size: 12px; }
+    @media (max-width: 760px) {
+      .page-header { align-items: flex-start; flex-direction: column; gap: 5px; padding: 14px 18px; }
+      main { padding: 20px 18px 36px; }
+      .workspace { grid-template-columns: minmax(0, 1fr); gap: 34px; }
+      textarea { min-height: 160px; }
+      .empty-state { min-height: 220px; }
+    }
+
+    @media (max-width: 440px) {
+      .result-toolbar { align-items: flex-start; flex-direction: column; }
+      .result-actions { width: 100%; }
+      .result-actions button { flex: 1; }
+      .board-wrap { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+      <h1>自动排座位系统</h1>
+    </div>
+    <p class="privacy-note">名单仅在当前页面处理，关闭页面后不保留</p>
+  </header>
+
+  <main>
+    <div class="workspace">
+      <!-- 流程线稿 A-B-C-D：输入姓名并在本地校验 -->
+      <section class="controls" aria-labelledby="input-heading">
+        <div class="section-heading">
+          <h2 id="input-heading">学生名单</h2>
+          <span class="section-meta" id="name-count">0 人</span>
+        </div>
+
+        <form id="planner-form" novalidate>
+          <div class="field">
+            <label for="student-names">姓名</label>
+            <textarea id="student-names" name="student-names" autocomplete="off" spellcheck="false" placeholder="每行输入一位学生姓名" aria-describedby="name-hint"></textarea>
+            <p class="field-hint" id="name-hint">每行一位；名单不会上传或保存。</p>
+          </div>
+
+          <fieldset style="border:0;padding:0;margin:0">
+            <legend>教室布局</legend>
+            <div class="dimensions">
+              <div class="field">
+                <label for="row-count">行数</label>
+                <input id="row-count" name="row-count" type="number" inputmode="numeric" min="1" step="1" value="5">
+              </div>
+              <div class="field">
+                <label for="column-count">列数</label>
+                <input id="column-count" name="column-count" type="number" inputmode="numeric" min="1" step="1" value="6">
+              </div>
+            </div>
+            <div class="field" style="margin-top:16px">
+              <label for="podium-direction">讲台方向</label>
+              <select id="podium-direction" name="podium-direction">
+                <option value="top">上方</option>
+                <option value="bottom">下方</option>
+                <option value="left">左侧</option>
+                <option value="right">右侧</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <div class="form-actions">
+            <button class="primary" id="generate-button" type="submit">生成座位表</button>
+          </div>
+          <p class="notice" id="form-message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- 流程线稿 E-I：展示随机座位、重新抽排与手动交换 -->
+      <section class="results" aria-labelledby="result-heading">
+        <div class="section-heading">
+          <h2 id="result-heading">座位表</h2>
+          <span class="section-meta" id="layout-summary">尚未生成</span>
+        </div>
+
+        <div class="result-toolbar">
+          <p class="result-count" id="result-count" aria-live="polite">等待生成座位表</p>
+          <div class="result-actions">
+            <button id="reshuffle-button" type="button" disabled>重新排座</button>
+          </div>
+        </div>
+
+        <div id="board-container">
+          <div class="empty-state" id="empty-state">
+            <span class="empty-icon" aria-hidden="true">▦</span>
+            <strong>尚未生成座位表</strong>
+            <p>输入名单并设置教室布局后生成</p>
+          </div>
+        </div>
+        <p class="notice" id="board-message" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      const form = document.querySelector("#planner-form");
+      const namesInput = document.querySelector("#student-names");
+      const rowsInput = document.querySelector("#row-count");
+      const columnsInput = document.querySelector("#column-count");
+      const podiumInput = document.querySelector("#podium-direction");
+      const nameCount = document.querySelector("#name-count");
+      const formMessage = document.querySelector("#form-message");
+      const boardMessage = document.querySelector("#board-message");
+      const boardContainer = document.querySelector("#board-container");
+      const emptyState = document.querySelector("#empty-state");
+      const generateButton = document.querySelector("#generate-button");
+      const reshuffleButton = document.querySelector("#reshuffle-button");
+      const resultCount = document.querySelector("#result-count");
+      const layoutSummary = document.querySelector("#layout-summary");
+      const podiumLabels = {
+        top: "讲台",
+        bottom: "讲台",
+        left: "讲台",
+        right: "讲台"
+      };
+
+      let names = [];
+      let seats = null;
+      let selectedSeat = null;
+      let generation = 0;
+
+      function setMessage(element, text, kind = "") {
+        element.textContent = text;
+        element.className = `notice${kind ? ` ${kind}` : ""}`;
+      }
+
+      function clearBoard(message = "") {
+        seats = null;
+        selectedSeat = null;
+        generation += 1;
+        boardContainer.replaceChildren(emptyState);
+        generateButton.disabled = false;
+        reshuffleButton.disabled = true;
+        resultCount.textContent = "等待生成座位表";
+        layoutSummary.textContent = "尚未生成";
+        setMessage(boardMessage, message);
+      }
+
+      function readNames() {
+        const raw = namesInput.value;
+        if (!raw.trim()) {
+          return { error: "请输入学生姓名。" };
+        }
+
+        const lines = raw.replace(/\r\n?/g, "\n").split("\n");
+        while (lines.length && lines[lines.length - 1].trim() === "") {
+          lines.pop();
+        }
+
+        const blankLine = lines.findIndex((line) => line.trim() === "");
+        if (blankLine !== -1) {
+          return { error: `第 ${blankLine + 1} 行为空，请删除空行或补上姓名。` };
+        }
+
+        const parsed = lines.map((line) => line.trim());
+        const seen = new Set();
+        for (const name of parsed) {
+          if (seen.has(name)) {
+            return { error: `“${name}”重复出现，请检查名单。` };
+          }
+          seen.add(name);
+        }
+
+        return { names: parsed };
+      }
+
+      function readLayout() {
+        const rows = Number(rowsInput.value);
+        const columns = Number(columnsInput.value);
+        if (!Number.isSafeInteger(rows) || rows < 1 || !Number.isSafeInteger(columns) || columns < 1) {
+          return { error: "行数和列数必须是大于 0 的整数。" };
+        }
+
+        const capacity = rows * columns;
+        if (!Number.isSafeInteger(capacity) || capacity > 2500) {
+          return { error: "当前单页最多显示 2500 个座位，请调整行列数。" };
+        }
+        return { rows, columns, capacity };
+      }
+
+      function shuffled(values) {
+        const output = values.slice();
+        for (let index = output.length - 1; index > 0; index -= 1) {
+          const other = Math.floor(Math.random() * (index + 1));
+          [output[index], output[other]] = [output[other], output[index]];
+        }
+        return output;
+      }
+
+      function createBoard() {
+        if (!seats) return;
+        emptyState.remove();
+
+        const direction = podiumInput.value;
+        const layout = document.createElement("div");
+        layout.className = `board-layout podium-${direction}`;
+
+        const podium = document.createElement("div");
+        podium.className = `podium podium-${direction}`;
+        podium.textContent = podiumLabels[direction];
+        podium.setAttribute("aria-label", `讲台，位于${({ top: "上方", bottom: "下方", left: "左侧", right: "右侧" })[direction]}`);
+
+        const grid = document.createElement("div");
+        grid.className = "seat-grid";
+        grid.style.setProperty("--columns", columnsInput.value);
+        grid.setAttribute("role", "group");
+        grid.setAttribute("aria-label", "座位列表");
+
+        seats.forEach((student, index) => {
+          const seat = document.createElement("button");
+          seat.type = "button";
+          seat.className = `seat${student ? "" : " empty-seat"}${selectedSeat === index ? " selected-seat" : ""}`;
+          seat.setAttribute("aria-label", student ? `${index + 1} 号座位，${student}` : `${index + 1} 号座位，空位`);
+          seat.setAttribute("aria-pressed", selectedSeat === index ? "true" : "false");
+          seat.addEventListener("click", () => selectSeat(index));
+
+          const number = document.createElement("span");
+          number.className = "seat-index";
+          number.textContent = `${index + 1} 号位`;
+          const name = document.createElement("span");
+          name.className = "seat-name";
+          name.textContent = student || "空位";
+          seat.append(number, name);
+          grid.append(seat);
+        });
+
+        if (direction === "bottom") {
+          layout.append(grid, podium);
+        } else {
+          layout.append(podium, grid);
+        }
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "board-wrap";
+        wrapper.append(layout);
+        boardContainer.replaceChildren(wrapper);
+        setMessage(boardMessage, "点击两个座位即可交换位置。");
+      }
+
+      function selectSeat(index) {
+        if (selectedSeat === null) {
+          selectedSeat = index;
+          createBoard();
+          setMessage(boardMessage, `已选择 ${index + 1} 号座位，请再选择一个座位进行交换。`);
+          return;
+        }
+
+        if (selectedSeat === index) {
+          selectedSeat = null;
+          createBoard();
+          setMessage(boardMessage, "已取消座位选择。");
+          return;
+        }
+
+        const firstSeat = selectedSeat;
+        [seats[firstSeat], seats[index]] = [seats[index], seats[firstSeat]];
+        selectedSeat = null;
+        createBoard();
+        setMessage(boardMessage, `已交换 ${firstSeat + 1} 号座位与 ${index + 1} 号座位。`, "success");
+      }
+
+      function generate(isReshuffle) {
+        const parsed = readNames();
+        if (parsed.error) {
+          setMessage(formMessage, parsed.error, "error");
+          namesInput.focus();
+          return;
+        }
+
+        const layout = readLayout();
+        if (layout.error) {
+          setMessage(formMessage, layout.error, "error");
+          (rowsInput.validity.valid ? columnsInput : rowsInput).focus();
+          return;
+        }
+
+        if (parsed.names.length > layout.capacity) {
+          setMessage(formMessage, `名单有 ${parsed.names.length} 人，但当前只有 ${layout.capacity} 个座位。请增加行数或列数。`, "error");
+          rowsInput.focus();
+          return;
+        }
+
+        const token = ++generation;
+        generateButton.disabled = true;
+        reshuffleButton.disabled = true;
+        setMessage(formMessage, "正在生成座位表…");
+
+        window.setTimeout(() => {
+          if (token !== generation) return;
+          names = parsed.names;
+          seats = shuffled(names.concat(Array(layout.capacity - names.length).fill("")));
+          selectedSeat = null;
+          createBoard();
+          generateButton.disabled = false;
+          reshuffleButton.disabled = false;
+          nameCount.textContent = `${names.length} 人`;
+          resultCount.textContent = `${names.length} 位学生 · ${layout.capacity - names.length} 个空位`;
+          layoutSummary.textContent = `${layout.rows} 行 × ${layout.columns} 列`;
+          setMessage(formMessage, isReshuffle ? "已生成新的座位表。" : "座位表已生成。", "success");
+        }, 80);
+      }
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        generate(false);
+      });
+
+      reshuffleButton.addEventListener("click", () => generate(true));
+
+      namesInput.addEventListener("input", () => {
+        const lines = namesInput.value.split(/\r?\n/).filter((line) => line.trim() !== "");
+        nameCount.textContent = `${lines.length} 人`;
+        if (seats || generateButton.disabled) clearBoard("名单已修改，请重新生成座位表。");
+        setMessage(formMessage, "");
+      });
+
+      [rowsInput, columnsInput, podiumInput].forEach((input) => {
+        input.addEventListener("change", () => {
+          if (seats || generateButton.disabled) clearBoard("布局已修改，请重新生成座位表。");
+          setMessage(formMessage, "");
+        });
+      });
+
+      window.addEventListener("pagehide", () => {
+        names = [];
+        namesInput.value = "";
+        nameCount.textContent = "0 人";
+        clearBoard();
+      });
+    })();
+  </script>
+</body>
+</html>
